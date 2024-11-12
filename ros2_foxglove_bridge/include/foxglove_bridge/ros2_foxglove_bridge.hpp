@@ -8,6 +8,8 @@
 
 #include <rclcpp/rclcpp.hpp>
 #include <rosgraph_msgs/msg/clock.hpp>
+#include "rclcpp/serialization.hpp"
+#include "sensor_msgs/msg/compressed_image.hpp"
 #include <rosx_introspection/ros_parser.hpp>
 #include <websocketpp/common/connection_hdl.hpp>
 
@@ -120,6 +122,10 @@ private:
   void fetchAsset(const std::string& assetId, uint32_t requestId, ConnectionHandle clientHandle);
 
   bool hasCapability(const std::string& capability);
+  long int m_window_start{0};
+  long int m_frames{0};
+  sensor_msgs::msg::CompressedImage m_deserialized_msg;
+  rclcpp::Serialization<sensor_msgs::msg::CompressedImage> m_serialization;
 };
 
 }  // namespace foxglove_bridge

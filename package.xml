@@ -23,6 +23,7 @@
     <depend condition="$ROS_VERSION == 2">rclcpp_components</depend>
 
     <depend condition="$ROS_VERSION == 2">rosx_introspection</depend>
+    <depend condition="$ROS_VERSION == 2">sensor_msgs</depend>
 
 
     <!-- Test dependencies -->

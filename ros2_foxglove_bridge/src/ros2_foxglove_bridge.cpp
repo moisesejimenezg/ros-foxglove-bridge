@@ -232,7 +232,7 @@ void FoxgloveBridge::updateAdvertisedTopics(
                      [topicAndDatatype](const auto& channelIdAndChannel) {
                        const auto& channel = channelIdAndChannel.second;
                        return channel.topic == topicAndDatatype.first &&
-                              channel.schemaName == topicAndDatatype.second;
+                              channel.schemaName == topicAndDatatype.second && channel.topic != "/rosout";
                      }) != _advertisedTopics.end()) {
       continue;  // Topic already advertised
     }
@@ -855,11 +855,37 @@ void FoxgloveBridge::rosMessageHandler(const foxglove::ChannelId& channelId,
                                        std::shared_ptr<const rclcpp::SerializedMessage> msg) {
   // NOTE: Do not call any RCLCPP_* logging functions from this function. Otherwise, subscribing
   // to `/rosout` will cause a feedback loop
-  const auto timestamp = this->now().nanoseconds();
-  assert(timestamp >= 0 && "Timestamp is negative");
+  if (m_window_start == 0) {
+      m_window_start = this->now().nanoseconds();
+  }
+  const auto timestamp_start = this->now().nanoseconds();
+  assert(timestamp_start >= 0 && "Timestamp is negative");
   const auto rclSerializedMsg = msg->get_rcl_serialized_message();
-  _server->sendMessage(clientHandle, channelId, static_cast<uint64_t>(timestamp),
+
+  m_serialization.deserialize_message(msg.get(), &m_deserialized_msg);
+  const auto timestamp_deserialization = this->now().nanoseconds();
+
+  const auto deserialization_duration = timestamp_deserialization - timestamp_start;
+  _server->sendMessage(clientHandle, channelId, static_cast<uint64_t>(timestamp_start),
                        rclSerializedMsg.buffer, rclSerializedMsg.buffer_length);
+
+  const auto timestamp_end = this->now().nanoseconds();
+  const auto send_duration = timestamp_end - timestamp_deserialization;
+  const auto duration = timestamp_end - timestamp_start;
+      //RCLCPP_INFO(this->get_logger(), "message size: %li", msg->size());
+  m_frames++;
+  if (timestamp_end - m_window_start > 1'000'000'000) {
+      m_window_start = this->now().nanoseconds();
+      RCLCPP_INFO(this->get_logger(), "frames %li", m_frames);
+      m_frames = 0;
+  }
+  RCLCPP_INFO(this->get_logger(), "m_deserialized_msg.header.stamp: %i.%i", m_deserialized_msg.header.stamp.sec, m_deserialized_msg.header.stamp.nanosec);
+  RCLCPP_INFO(this->get_logger(), "timestamp_start: %li ns", timestamp_start);
+  RCLCPP_INFO(this->get_logger(), "timestamp_deserialization: %li ns", timestamp_deserialization);
+  RCLCPP_INFO(this->get_logger(), "timestamp_end: %li ns", timestamp_end);
+  RCLCPP_INFO(this->get_logger(), "deserialization_duration: %li ns", deserialization_duration);
+  RCLCPP_INFO(this->get_logger(), "send_duration: %li ns", send_duration);
+  RCLCPP_INFO(this->get_logger(), "duration: %li ns", duration);
 }
 
 void FoxgloveBridge::serviceRequest(const foxglove::ServiceRequest& request,
